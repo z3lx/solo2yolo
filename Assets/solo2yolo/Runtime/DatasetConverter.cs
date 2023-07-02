@@ -82,10 +82,10 @@ namespace z3lx.solo2yolo
                             foreach (BoundingBox2DAnnotation.Value value in annotation.Values)
                             {
                                 int objectClassId = value.LabelId;
-                                float x = value.Origin.x + (value.Dimension.x / 2);
-                                float y = value.Origin.y - (value.Dimension.y / 2);
-                                float width = value.Dimension.x;
-                                float height = value.Dimension.y;
+                                double x = (double)(value.Origin.x + (value.Dimension.x / 2)) / capture.Dimension.x;
+                                double y = (double)(value.Origin.y + (value.Dimension.y / 2)) / capture.Dimension.y;
+                                double width = (double)value.Dimension.x / capture.Dimension.x;
+                                double height = (double)value.Dimension.y / capture.Dimension.y;
                                 labelingData += $"{objectClassId} {x} {y} {width} {height}\n";
                             }
                             break;
