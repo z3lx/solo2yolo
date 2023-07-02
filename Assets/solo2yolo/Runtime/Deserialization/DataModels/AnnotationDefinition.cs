@@ -2,8 +2,14 @@ using Newtonsoft.Json;
 
 namespace z3lx.solo2yolo.Deserialization.DataModels
 {
+    public sealed class AnnotationDefinitions
+    {
+        [JsonProperty("annotationDefinitions")]
+        public AnnotationDefinition[] Values { get; set; }
+    }
+
     [System.Serializable]
-    public abstract class AnnotationDefinition
+    public sealed class AnnotationDefinition
     {
         /// <summary>
         /// The class type of the annotation.
@@ -22,5 +28,21 @@ namespace z3lx.solo2yolo.Deserialization.DataModels
         /// </summary>
         [JsonProperty("description")]
         public string Description { get; set; }
+
+        /// <summary>
+        /// Format-specific specification for the annotation values.
+        /// </summary>
+        [JsonProperty("spec")]
+        public Specification[] Specifications { get; set; }
+
+        // TODO: Check annotation-specific properties
+        public sealed class Specification
+        {
+            [JsonProperty("label_id")]
+            public int LabelId { get; set; }
+
+            [JsonProperty("label_name")]
+            public string labelName { get; set; }
+        }
     }
 }
