@@ -14,7 +14,7 @@ namespace z3lx.solo2yolo.Deserialization.DataModels
         /// A single file that stores sensor captured data.
         /// </summary>
         [JsonProperty("filename")]
-        public string Filename { get; set; }
+        public string FileName { get; set; }
 
         /// <summary>
         /// The format of the sensor captured file.
