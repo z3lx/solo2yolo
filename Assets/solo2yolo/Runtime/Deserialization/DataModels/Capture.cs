@@ -9,6 +9,7 @@ namespace z3lx.solo2yolo.Deserialization.DataModels
     /// metadata that describes the state of the sensor.
     /// </summary>
     [System.Serializable]
+    [JsonObject(ItemRequired = Required.Always)]
     [JsonConverter(typeof(CaptureConverter))]
     public abstract class Capture
     {
