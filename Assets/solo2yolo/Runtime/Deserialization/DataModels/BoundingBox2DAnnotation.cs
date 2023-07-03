@@ -18,6 +18,7 @@ namespace z3lx.solo2yolo.Deserialization.DataModels
         public Value[] Values { get; set; }
 
         [System.Serializable]
+        [JsonObject(ItemRequired = Required.Always)]
         public class Value
         {
             /// <summary>

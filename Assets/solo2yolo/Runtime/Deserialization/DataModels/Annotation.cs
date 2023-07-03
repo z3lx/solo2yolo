@@ -8,6 +8,7 @@ namespace z3lx.solo2yolo.Deserialization.DataModels
     /// contain many annotations each corresponding to one active Labeler in the simulation.
     /// </summary>
     [System.Serializable]
+    [JsonObject(ItemRequired = Required.Always)]
     [JsonConverter(typeof(AnnotationConverter))]
     public abstract class Annotation
     {

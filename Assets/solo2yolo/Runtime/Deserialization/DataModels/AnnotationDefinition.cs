@@ -2,6 +2,8 @@ using Newtonsoft.Json;
 
 namespace z3lx.solo2yolo.Deserialization.DataModels
 {
+    [System.Serializable]
+    [JsonObject(ItemRequired = Required.Always)]
     public sealed class AnnotationDefinitions
     {
         [JsonProperty("annotationDefinitions")]
@@ -9,6 +11,7 @@ namespace z3lx.solo2yolo.Deserialization.DataModels
     }
 
     [System.Serializable]
+    [JsonObject(ItemRequired = Required.Always)]
     public sealed class AnnotationDefinition
     {
         /// <summary>
@@ -36,6 +39,8 @@ namespace z3lx.solo2yolo.Deserialization.DataModels
         public Specification[] Specifications { get; set; }
 
         // TODO: Check annotation-specific properties
+        [System.Serializable]
+        [JsonObject(ItemRequired = Required.Always)]
         public sealed class Specification
         {
             [JsonProperty("label_id")]
