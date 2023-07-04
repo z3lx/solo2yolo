@@ -65,7 +65,7 @@ namespace z3lx.solo2yolo
             if (GUI.Button(soloButtonRect, "Choose Folder"))
             {
                 string input = EditorUtility.OpenFolderPanel("Select SOLO directory", "", "");
-                _soloPath = string.IsNullOrEmpty(input) ? _soloPath : input;
+                _soloPath = string.IsNullOrEmpty(input) ? _soloPath : input.Replace('/', Path.DirectorySeparatorChar);
             }
 
             GUI.Label(yoloLabelRect, "YOLO directory");
@@ -74,7 +74,7 @@ namespace z3lx.solo2yolo
             if (GUI.Button(yoloButtonRect, "Choose Folder"))
             {
                 string input = EditorUtility.OpenFolderPanel("Select YOLO directory", "", "");
-                _yoloPath = string.IsNullOrEmpty(input) ? _yoloPath : input;
+                _yoloPath = string.IsNullOrEmpty(input) ? _yoloPath : input.Replace('/', Path.DirectorySeparatorChar);
             }
 
             GUI.Label(yoloTaskLabelRect, "YOLO task");
