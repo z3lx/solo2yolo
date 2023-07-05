@@ -4,8 +4,5 @@
   "displayName": "solo2yolo",
   "description": "solo2yolo is a tool that enables conversion of SOLO datasets to YOLO format from right within the Unity editor.",
   "unity": "2021.3",
-  "unityRelease": "7f1",
-  "dependencies": {
-    "com.unity.nuget.newtonsoft-json": "3.2.1"
- }
+  "unityRelease": "7f1"
 }
