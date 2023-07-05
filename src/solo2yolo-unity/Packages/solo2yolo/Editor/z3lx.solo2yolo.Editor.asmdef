@@ -1,8 +1,10 @@
 {
     "name": "z3lx.solo2yolo.Editor",
-    "rootNamespace": "",
+    "rootNamespace": "solo2yolo.Editor",
     "references": [],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
