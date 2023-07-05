@@ -1,9 +1,7 @@
 {
     "name": "z3lx.solo2yolo.Editor",
     "rootNamespace": "",
-    "references": [
-        "GUID:ecc28f7d7ae73aa46bd69e75dea10a7c"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

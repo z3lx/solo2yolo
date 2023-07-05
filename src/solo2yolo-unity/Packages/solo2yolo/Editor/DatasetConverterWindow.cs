@@ -17,6 +17,14 @@ namespace z3lx.solo2yolo
         private float _buttonWidth = 96;
         private float _iconWidth = 24;
 
+        public enum ComputerVisionTask
+        {
+            Classify,
+            Detect,
+            Segment,
+            Pose
+        }
+
         private string _soloPath;
         private string _yoloPath;
         private ComputerVisionTask _task;
@@ -82,7 +90,8 @@ namespace z3lx.solo2yolo
             _task = (ComputerVisionTask)EditorGUI.EnumPopup(yoloTaskEnumRect, _task);
             EditorGUI.EndDisabledGroup();
             if (GUI.Button(confirmButtonRect, "Confirm"))
-                DatasetConverter.Convert(_soloPath, _yoloPath, _task);
+                System.Diagnostics.Process.Start(Path.GetFullPath("Packages/com.z3lx.solo2yolo/Runtime/solo2yolo.exe"), $"-i {_soloPath} -o {_yoloPath} -t {_task}");
+
         }
     }
 }
