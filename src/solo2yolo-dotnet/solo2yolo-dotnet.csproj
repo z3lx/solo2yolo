@@ -7,6 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>solo2yolo</AssemblyName>
+    <Version>0.1.0</Version>
+    <Company>z3lx</Company>
   </PropertyGroup>
 
   <ItemGroup>
