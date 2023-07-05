@@ -90,7 +90,27 @@ namespace z3lx.solo2yolo
             _task = (ComputerVisionTask)EditorGUI.EnumPopup(yoloTaskEnumRect, _task);
             EditorGUI.EndDisabledGroup();
             if (GUI.Button(confirmButtonRect, "Confirm"))
-                System.Diagnostics.Process.Start(Path.GetFullPath("Packages/com.z3lx.solo2yolo/Runtime/solo2yolo.exe"), $"-i {_soloPath} -o {_yoloPath} -t {_task}");
+            {
+                string path = Path.GetFullPath(Path.Combine("Packages", "com.z3lx.solo2yolo", "Runtime"));
+                switch (Application.platform)
+                {
+                    case RuntimePlatform.WindowsEditor:
+                        path = Path.Combine(path, "solo2yolo-win-x64.exe");
+                        break;
+                    
+                    case RuntimePlatform.OSXEditor:
+                        path = Path.Combine(path, "solo2yolo-osx-x64");
+                        break;
+
+                    case RuntimePlatform.LinuxEditor:
+                        path = Path.Combine(path, "solo2yolo-linux-x64");
+                        break;
+
+                    default:
+                        throw new PlatformNotSupportedException("Unsupported platform");
+                }
+                System.Diagnostics.Process.Start(path, $"-i {_soloPath} -o {_yoloPath} -t {_task}");
+            }
 
         }
     }
