@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <RootNamespace>solo2yolo</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>solo2yolo</AssemblyName>
+    <Version>0.1.0</Version>
+    <Company>z3lx</Company>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Deserialization\**" />
+    <EmbeddedResource Remove="Deserialization\**" />
+    <None Remove="Deserialization\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>
