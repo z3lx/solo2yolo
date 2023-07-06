@@ -3,7 +3,6 @@
 namespace z3lx.solo2yolo.Json.DataModels
 {
     [Serializable]
-    [JsonObject(ItemRequired = Required.Always)]
     public sealed class FrameData
     {
         /// <summary>
@@ -34,6 +33,6 @@ namespace z3lx.solo2yolo.Json.DataModels
         /// The list of captures.
         /// </summary>
         [JsonProperty("captures")]
-        public Capture[] Captures { get; set; }
+        public Capture[]? Captures { get; set; }
     }
 }
