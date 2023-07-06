@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System.Text.RegularExpressions;
 using z3lx.solo2yolo.Json.DataModels;
 
 namespace z3lx.solo2yolo
@@ -22,59 +23,63 @@ namespace z3lx.solo2yolo
             ValidateAndSanitizePath(ref soloPath);
             ValidateAndSanitizePath(ref outputPath);
 
-            string yoloPath = CreateYoloDirectory(outputPath);
+            // TODO: Do checks for correct metadata/definition json
 
             Metadata metadata = DeserializeObjectFromFile<Metadata>(Path.Combine(soloPath, "metadata.json"));
 
-            // Iterate through all sequences and frames
-            int labelingFrameCount = 0;
-            int sequenceCount = 0;
-            for (int i = 0; sequenceCount < metadata.TotalSequences; i++)
+            IEnumerable<string> sequencePaths = Directory.EnumerateDirectories(soloPath, "sequence.*", SearchOption.TopDirectoryOnly)
+                .OrderBy(sequencePath => GetIndexFromPath(sequencePath, "sequence.*"));
+
+            IEnumerable<string> frameDataPaths = sequencePaths
+                .SelectMany(sequencePath => Directory.EnumerateFiles(sequencePath, "step*.frame_data.json", SearchOption.TopDirectoryOnly)
+                .OrderBy(frameDataPath => GetIndexFromPath(frameDataPath, "step*.frame_data.json")));
+
+            string yoloPath = CreateYoloDirectory(outputPath);
+
+            int index = 0;
+            foreach (string frameDataPath in frameDataPaths)
             {
-                string sequencePath = Path.Combine(soloPath, $"sequence.{i}");
-                if (!Directory.Exists(sequencePath))
+                FrameData frameData = DeserializeObjectFromFile<FrameData>(frameDataPath);
+                if (frameData.Captures == null)
                     continue;
 
-                sequenceCount++;
+                // Hardcoded RGB capture
+                RgbCapture capture = frameData.Captures.OfType<RgbCapture>().FirstOrDefault();
+                if (capture == null || string.IsNullOrEmpty(capture.FileName))
+                    continue;
 
-                int frameCount = 0;
-                int framesInSequence = Directory.EnumerateFiles(sequencePath, "*.json").ToArray().Length;
-                for (int j = 0; frameCount < framesInSequence; j++)
-                {
-                    string frameDataPath = Path.Combine(sequencePath, $"step{j}.frame_data.json");
-                    if (!File.Exists(frameDataPath))
-                        continue;
+                // Convert annotations for the frame depending on the task
+                string labelingData = ConvertLabelingData(capture, task);
+                if (string.IsNullOrEmpty(labelingData))
+                    continue;
 
-                    frameCount++;
+                // Write labeling data to output
+                string labelingDataPath = Path.Combine(yoloPath, "labels", $"{index:D12}.txt");
+                File.WriteAllText(labelingDataPath, labelingData);
 
-                    FrameData frameData = DeserializeObjectFromFile<FrameData>(frameDataPath);
+                // Copy image to output
+                string sourceImagePath = Path.Combine(Directory.GetParent(frameDataPath).FullName, capture.FileName);
+                string destImagePath = Path.Combine(yoloPath, "images", $"{index:D12}.{capture.ImageFormat.ToLower()}");
+                File.Copy(sourceImagePath, destImagePath);
 
-                    // Hardcoded RGB capture
-                    RgbCapture capture = frameData.Captures.OfType<RgbCapture>().FirstOrDefault();
-                    if (capture == null || string.IsNullOrEmpty(capture.FileName))
-                        continue;
-
-                    // Convert annotations for the frame depending on the task
-                    string labelingData = ConvertLabelingData(capture, task);
-                    if (string.IsNullOrEmpty(labelingData))
-                        continue;
-
-                    // Write labeling data to output
-                    string labelingDataPath = Path.Combine(yoloPath, "labels", $"{labelingFrameCount:D12}.txt");
-                    File.WriteAllText(labelingDataPath, labelingData);
-
-                    // Copy image to output
-                    string sourceImagePath = Path.Combine(sequencePath, capture.FileName);
-                    string destImagePath = Path.Combine(yoloPath, "images", $"{labelingFrameCount:D12}.{capture.ImageFormat.ToLower()}");
-                    File.Copy(sourceImagePath, destImagePath);
-
-                    labelingFrameCount++;
-                }
+                index++;
             }
 
-            // TODO: Add support for multiple annotation definitions
             AnnotationDefinition annotationDefinition = DeserializeObjectFromFile<AnnotationDefinitions>(Path.Combine(soloPath, "annotation_definitions.json")).Values[0];
             GenerateDatasetYaml(yoloPath, annotationDefinition);
+        }
+
+        static int GetIndexFromPath(string path, string format)
+        {
+            string fileName = Path.GetFileName(path);
+            string pattern = format.Replace("*", "(\\d+)");
+            Match match = Regex.Match(fileName, pattern);
+
+            if (!match.Success || !(match.Groups.Count > 1))
+                return -1;
+
+            string indexString = match.Groups[1].Value;
+            return int.Parse(indexString);
         }
 
         // TODO: Add validations
