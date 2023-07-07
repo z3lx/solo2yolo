@@ -12,6 +12,8 @@
         private static string soloPath = string.Empty;
         private static string yoloPath = string.Empty;
         private static ComputerVisionTask? task = null;
+        private static bool unityEditor = false;
+
         private static HashSet<string> errorMessages = new HashSet<string>();
 
         static void Main(string[] args)
@@ -27,7 +29,13 @@
             if (!ValidateArguments())
                 return;
 
-            DatasetConverter.Convert(soloPath, yoloPath, task.Value, true);
+            DatasetConverter.Convert(soloPath, yoloPath, task.Value);
+
+            if (unityEditor)
+            {
+                Console.WriteLine("\nPress any key to close this window...");
+                Console.ReadKey();
+            }
         }
 
         /// <summary>
@@ -40,7 +48,18 @@
             {
                 string argument = args[i];
 
-                if (argument.StartsWith("-"))
+                if (argument.StartsWith("--"))
+                {
+                    string flag = argument.Substring(2);
+
+                    switch (flag)
+                    {
+                        case "unity-editor":
+                            unityEditor = true;
+                            break;
+                    }
+                }
+                else if (argument.StartsWith("-"))
                 {
                     string flag = argument.Substring(1);
 

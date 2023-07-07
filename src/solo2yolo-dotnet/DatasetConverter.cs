@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using z3lx.solo2yolo.Json.DataModels;
 
@@ -18,55 +19,129 @@ namespace z3lx.solo2yolo
         /// <param name="outputPath">The path to store the converted YOLO dataset.</param>
         /// <param name="task">The computer vision task conversion to perform.</param>
         /// <param name="log">Flag indicating whether to enable logging.</param>
-        public static void Convert(string soloPath, string outputPath, ComputerVisionTask task, bool log = false)
+        public static void Convert(string soloPath, string outputPath, ComputerVisionTask task)
         {
+            Stopwatch stopWatch = new Stopwatch();
+            TimeSpan ts;
+
             ValidateAndSanitizePath(ref soloPath);
             ValidateAndSanitizePath(ref outputPath);
 
-            // TODO: Do checks for correct metadata/definition json
-
+            // TODO: Check for correct metadata/definition json
             Metadata metadata = DeserializeObjectFromFile<Metadata>(Path.Combine(soloPath, "metadata.json"));
+
+            // Sequences
+            ConsoleUtility.PrintInfo("Finding sequence(s)");
+            stopWatch.Start();
 
             IEnumerable<string> sequencePaths = Directory.EnumerateDirectories(soloPath, "sequence.*", SearchOption.TopDirectoryOnly)
                 .OrderBy(sequencePath => GetIndexFromPath(sequencePath, "sequence.*"));
+            int sequencecount = sequencePaths.Count();
+
+            stopWatch.Stop();
+            ts = stopWatch.Elapsed;
+            if (sequencecount == metadata.TotalSequences)
+            {
+                ConsoleUtility.PrintInfo(string.Format("Found {0} sequence{1} in {2:F3} ms",
+                    sequencecount, sequencecount == 1 ? "" : "s", ts.TotalMilliseconds));
+            }
+            else if (sequencecount == 0)
+            {
+                ConsoleUtility.PrintError("Did not find any sequences, aborting");
+                return;
+            }
+            else
+            {
+                ConsoleUtility.PrintWarning(string.Format("Found {0} sequence{1} in {2:F3} ms, expected {3}",
+                    sequencecount, sequencecount == 1 ? "" : "s", ts.TotalMilliseconds, metadata.TotalSequences));
+            }
+
+            // Frames
+            ConsoleUtility.PrintInfo("Finding frame(s)");
+            stopWatch.Restart();
 
             IEnumerable<string> frameDataPaths = sequencePaths
                 .SelectMany(sequencePath => Directory.EnumerateFiles(sequencePath, "step*.frame_data.json", SearchOption.TopDirectoryOnly)
                 .OrderBy(frameDataPath => GetIndexFromPath(frameDataPath, "step*.frame_data.json")));
+            int frameCount = frameDataPaths.Count();
 
+            stopWatch.Stop();
+            ts = stopWatch.Elapsed;
+            if (frameCount == metadata.TotalFrames)
+            {
+                ConsoleUtility.PrintInfo(string.Format("Found {0} frame{1} in {2:F3} ms",
+                    frameCount, frameCount == 1 ? "" : "s", ts.TotalMilliseconds));
+            }
+            else if (frameCount == 0)
+            {
+                ConsoleUtility.PrintError("Did not find any frames, aborting");
+                return;
+            }
+            else
+            {
+                ConsoleUtility.PrintWarning(string.Format("Found {0} frame{1} in {2:F3} ms, expected {3}",
+                    frameCount, frameCount == 1 ? "" : "s", ts.TotalMilliseconds, metadata.TotalFrames));
+            }
+
+            // TODO: Check for write permission
+            ConsoleUtility.PrintInfo("Creating YOLO directory");
             string yoloPath = CreateYoloDirectory(outputPath);
 
-            int index = 0;
+            ConsoleUtility.PrintInfo("Converting dataset format");
+            stopWatch.Restart();
+
+            // TODO: try/catch
+            int soloIndex = 0;
+            int yoloIndex = 0;
             foreach (string frameDataPath in frameDataPaths)
             {
-                FrameData frameData = DeserializeObjectFromFile<FrameData>(frameDataPath);
-                if (frameData.Captures == null)
-                    continue;
+                soloIndex++;
 
+                FrameData frameData = DeserializeObjectFromFile<FrameData>(frameDataPath);
+                if (frameData.Captures == null || frameData.Captures.Length == 0)
+                {
+                    ConsoleUtility.PrintWarning($"Skipped frame {soloIndex} out of {frameCount}: " +
+                        "no reported captures");
+                    continue;
+                }
                 // Hardcoded RGB capture
                 RgbCapture capture = frameData.Captures.OfType<RgbCapture>().FirstOrDefault();
-                if (capture == null || string.IsNullOrEmpty(capture.FileName))
+                if (string.IsNullOrEmpty(capture.FileName))
+                {
+                    ConsoleUtility.PrintWarning($"Skipped frame {soloIndex} out of {frameCount}: " +
+                        "no associated image file");
                     continue;
-
+                }
                 // Convert annotations for the frame depending on the task
                 string labelingData = ConvertLabelingData(capture, task);
                 if (string.IsNullOrEmpty(labelingData))
+                {
+                    ConsoleUtility.PrintWarning($"Skipped frame {soloIndex} out of {frameCount}: " +
+                        "no reported labels");
                     continue;
+                }
 
                 // Write labeling data to output
-                string labelingDataPath = Path.Combine(yoloPath, "labels", $"{index:D12}.txt");
+                string labelingDataPath = Path.Combine(yoloPath, "labels", $"{yoloIndex:D12}.txt");
                 File.WriteAllText(labelingDataPath, labelingData);
 
                 // Copy image to output
                 string sourceImagePath = Path.Combine(Directory.GetParent(frameDataPath).FullName, capture.FileName);
-                string destImagePath = Path.Combine(yoloPath, "images", $"{index:D12}.{capture.ImageFormat.ToLower()}");
+                string destImagePath = Path.Combine(yoloPath, "images", $"{yoloIndex:D12}.{capture.ImageFormat.ToLower()}");
                 File.Copy(sourceImagePath, destImagePath);
 
-                index++;
+                ConsoleUtility.PrintInfo($"Processed frame {soloIndex} out of {frameCount}");
+
+                yoloIndex++;
             }
 
+            ConsoleUtility.PrintInfo("Creating dataset.yaml");
             AnnotationDefinition annotationDefinition = DeserializeObjectFromFile<AnnotationDefinitions>(Path.Combine(soloPath, "annotation_definitions.json")).Values[0];
             GenerateDatasetYaml(yoloPath, annotationDefinition);
+
+            stopWatch.Stop();
+            ts = stopWatch.Elapsed;
+            ConsoleUtility.PrintInfo($"Converted dataset format in {ts.TotalMilliseconds:F3} ms");
         }
 
         static int GetIndexFromPath(string path, string format)
