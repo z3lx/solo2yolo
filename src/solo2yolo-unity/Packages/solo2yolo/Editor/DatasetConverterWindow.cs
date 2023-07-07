@@ -76,11 +76,11 @@ namespace z3lx.solo2yolo
             GUI.Label(layout.GetNextRect(_labelWidth), label);
             GUI.Label(layout.GetNextRect(_iconWidth), _folderIcon);
             GUI.Label(layout.GetNextRect(layout.contentRect.width - _labelWidth - _iconWidth - _buttonWidth), path);
-            if (!GUI.Button(layout.GetNextRect(_buttonWidth, _buttonHeight), "Choose Folder"))
-                return;
-
-            string input = EditorUtility.OpenFolderPanel($"Select {label}", path, "");
-            path = string.IsNullOrEmpty(input) ? path : input.Replace('/', Path.DirectorySeparatorChar);
+            if (GUI.Button(layout.GetNextRect(_buttonWidth, _buttonHeight), "Choose Folder"))
+            {
+                string input = EditorUtility.OpenFolderPanel($"Select {label}", path, "");
+                path = string.IsNullOrEmpty(input) ? path : input.Replace('/', Path.DirectorySeparatorChar);
+            }
             layout.NewLine();
         }
 
