@@ -9,6 +9,7 @@ namespace z3lx.solo2yolo.Json.DataModels
     /// bounding box. The OpenCV 2D coordinate system is followed, where the origin (0,0), (x = 0, y = 0) is at the top left of the image.
     /// </summary>
     [Serializable]
+    [JsonObject(ItemRequired = Required.Default)]
     public sealed class BoundingBox2DAnnotation : Annotation
     {
         /// <summary>

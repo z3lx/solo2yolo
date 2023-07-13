@@ -89,14 +89,15 @@ namespace z3lx.solo2yolo
                 string labelingData = ConvertLabelingData(capture, task);
                 if (string.IsNullOrEmpty(labelingData))
                 {
-                    ConsoleUtility.PrintWarning($"Skipped frame {soloIndex} out of {frameCount}: " +
+                    ConsoleUtility.PrintWarning($"Skipped labelling for frame {soloIndex} out of {frameCount}: " +
                         "no reported labels.");
-                    continue;
                 }
-
-                // Write labeling data to output
-                string labelingDataPath = Path.Combine(yoloPath, "labels", $"{yoloIndex:D12}.txt");
-                File.WriteAllText(labelingDataPath, labelingData);
+                else
+                {
+                    // Write labeling data to output
+                    string labelingDataPath = Path.Combine(yoloPath, "labels", $"{yoloIndex:D12}.txt");
+                    File.WriteAllText(labelingDataPath, labelingData);
+                }
 
                 // Copy image to output
                 string sourceImagePath = Path.Combine(Directory.GetParent(frameDataPath).FullName, capture.FileName);
@@ -324,6 +325,9 @@ namespace z3lx.solo2yolo
                 case ComputerVisionTask.Detect:
                     BoundingBox2DAnnotation annotation = capture.Annotations.OfType<BoundingBox2DAnnotation>().FirstOrDefault();
                     if (annotation == null)
+                        return null;
+
+                    if (annotation.Values == null)
                         return null;
 
                     foreach (BoundingBox2DAnnotation.Value value in annotation.Values)
