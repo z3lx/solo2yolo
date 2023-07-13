@@ -1,6 +1,6 @@
 {
   "name": "com.z3lx.solo2yolo",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "displayName": "solo2yolo",
   "description": "solo2yolo is a tool that enables conversion of SOLO datasets to YOLO format from right within the Unity editor.",
   "unity": "2021.3",
