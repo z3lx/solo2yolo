@@ -1,4 +1,4 @@
-﻿namespace solo2yolo
+﻿namespace z3lx.solo2yolo
 {
     internal class Program
     {
