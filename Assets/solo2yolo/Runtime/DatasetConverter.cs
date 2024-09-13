@@ -2,7 +2,6 @@ using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Linq;
-using Unity.Properties;
 using z3lx.solo2yolo.Deserialization.DataModels;
 
 namespace z3lx.solo2yolo
@@ -104,18 +103,18 @@ namespace z3lx.solo2yolo
         private static void ValidateAndSanitizePath(ref string path)
         {
             if (string.IsNullOrWhiteSpace(path))
-                throw new InvalidPathException("Path cannot be null or empty.");
+                throw new DirectoryNotFoundException("Path cannot be null or empty.");
 
             path = path.Trim();
 
             if (Path.GetInvalidPathChars().Any(path.Contains))
-                throw new InvalidPathException("Path contains invalid characters.");
+                throw new DirectoryNotFoundException("Path contains invalid characters.");
 
             if (!Path.IsPathRooted(path))
-                throw new InvalidPathException("Path is not an absolute path.");
+                throw new DirectoryNotFoundException("Path is not an absolute path.");
 
             if (!Directory.Exists(path))
-                throw new InvalidPathException("Path does not exist.");
+                throw new DirectoryNotFoundException("Path does not exist.");
         }
 
         /// <summary>
