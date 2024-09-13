@@ -11,113 +11,86 @@ namespace z3lx.solo2yolo
     public static class DatasetConverter
     {
         // TODO: Add image dimension verification
-        // TODO: Add logging capabilities
         /// <summary>
         /// Converts a SOLO dataset to the YOLO format.
         /// </summary>
         /// <param name="soloPath">The path to the SOLO dataset.</param>
         /// <param name="outputPath">The path to store the converted YOLO dataset.</param>
         /// <param name="task">The computer vision task conversion to perform.</param>
-        /// <param name="log">Flag indicating whether to enable logging.</param>
         public static void Convert(string soloPath, string outputPath, ComputerVisionTask task)
         {
-            Stopwatch stopWatch = new Stopwatch();
-            TimeSpan ts;
-
-            ValidateAndSanitizePath(ref soloPath);
-            ValidateAndSanitizePath(ref outputPath);
-
-            // TODO: Check for correct metadata/definition json
-            Metadata metadata = DeserializeObjectFromFile<Metadata>(Path.Combine(soloPath, "metadata.json"));
-
-            // Sequences
-            ConsoleUtility.PrintInfo("Finding sequence(s)");
-            stopWatch.Start();
-
-            IEnumerable<string> sequencePaths = Directory.EnumerateDirectories(soloPath, "sequence.*", SearchOption.TopDirectoryOnly)
-                .OrderBy(sequencePath => GetIndexFromPath(sequencePath, "sequence.*"));
-            int sequencecount = sequencePaths.Count();
-
-            stopWatch.Stop();
-            ts = stopWatch.Elapsed;
-            if (sequencecount == metadata.TotalSequences)
+            // Validate and sanitize paths
+            try
             {
-                ConsoleUtility.PrintInfo(string.Format("Found {0} sequence{1} in {2:F3} ms",
-                    sequencecount, sequencecount == 1 ? "" : "s", ts.TotalMilliseconds));
+                ValidateAndSanitizePath(ref soloPath);
+                ValidateAndSanitizePath(ref outputPath);
             }
-            else if (sequencecount == 0)
+            catch (Exception ex)
             {
-                ConsoleUtility.PrintError("Did not find any sequences, aborting");
+                ConsoleUtility.PrintError($"{ex.Message} Aborting.");
                 return;
             }
-            else
-            {
-                ConsoleUtility.PrintWarning(string.Format("Found {0} sequence{1} in {2:F3} ms, expected {3}",
-                    sequencecount, sequencecount == 1 ? "" : "s", ts.TotalMilliseconds, metadata.TotalSequences));
-            }
 
-            // Frames
-            ConsoleUtility.PrintInfo("Finding frame(s)");
-            stopWatch.Restart();
-
-            IEnumerable<string> frameDataPaths = sequencePaths
-                .SelectMany(sequencePath => Directory.EnumerateFiles(sequencePath, "step*.frame_data.json", SearchOption.TopDirectoryOnly)
-                .OrderBy(frameDataPath => GetIndexFromPath(frameDataPath, "step*.frame_data.json")));
-            int frameCount = frameDataPaths.Count();
-
-            stopWatch.Stop();
-            ts = stopWatch.Elapsed;
-            if (frameCount == metadata.TotalFrames)
-            {
-                ConsoleUtility.PrintInfo(string.Format("Found {0} frame{1} in {2:F3} ms",
-                    frameCount, frameCount == 1 ? "" : "s", ts.TotalMilliseconds));
-            }
-            else if (frameCount == 0)
-            {
-                ConsoleUtility.PrintError("Did not find any frames, aborting");
+            // Read metadata
+            string metadataPath = Path.Combine(soloPath, "metadata.json");
+            if (!TryDeserializeObjectFromFile(metadataPath, out Metadata metadata))
                 return;
-            }
-            else
-            {
-                ConsoleUtility.PrintWarning(string.Format("Found {0} frame{1} in {2:F3} ms, expected {3}",
-                    frameCount, frameCount == 1 ? "" : "s", ts.TotalMilliseconds, metadata.TotalFrames));
-            }
+
+            // Read annotation definitions
+            string annotationDefinitionsPath = Path.Combine(soloPath, "annotation_definitions.json");
+            if (!TryDeserializeObjectFromFile(annotationDefinitionsPath, out AnnotationDefinitions annotationDefinitions))
+                return;
+
+            // Find frames
+            if (!TryFindFrames(soloPath, metadata, out IEnumerable<string> frameDataPaths, out int frameCount))
+                return;
 
             // TODO: Check for write permission
-            ConsoleUtility.PrintInfo("Creating YOLO directory");
+            // Create output directory
+            ConsoleUtility.PrintInfo("Creating YOLO directory...");
             string yoloPath = CreateYoloDirectory(outputPath);
 
-            ConsoleUtility.PrintInfo("Converting dataset format");
-            stopWatch.Restart();
+            // Convert dataset format
+            ConsoleUtility.PrintInfo("Starting dataset format conversion...");
+            Stopwatch stopwatch = Stopwatch.StartNew();
 
-            // TODO: try/catch
             int soloIndex = 0;
             int yoloIndex = 0;
             foreach (string frameDataPath in frameDataPaths)
             {
                 soloIndex++;
 
-                FrameData frameData = DeserializeObjectFromFile<FrameData>(frameDataPath);
+                // Deserialize frame data json
+                if (!TryDeserializeObjectFromFile(frameDataPath, out FrameData frameData))
+                {
+                    ConsoleUtility.PrintError($"Skipped frame {soloIndex} out of {frameCount}: " +
+                        "could not deserialize frame data.");
+                    continue;
+                }
+
+                // Check for captures
                 if (frameData.Captures == null || frameData.Captures.Length == 0)
                 {
                     ConsoleUtility.PrintWarning($"Skipped frame {soloIndex} out of {frameCount}: " +
-                        "no reported captures");
+                        "no reported captures.");
                     continue;
                 }
+
                 // Hardcoded RGB capture
                 RgbCapture capture = frameData.Captures.OfType<RgbCapture>().FirstOrDefault();
-                if (string.IsNullOrEmpty(capture.FileName))
+                if (string.IsNullOrEmpty(capture.FileName) || !File.Exists(Path.Combine(Directory.GetParent(frameDataPath).FullName, capture.FileName)))
                 {
                     ConsoleUtility.PrintWarning($"Skipped frame {soloIndex} out of {frameCount}: " +
-                        "no associated image file");
+                        "no associated image file.");
                     continue;
                 }
+
                 // Convert annotations for the frame depending on the task
                 string labelingData = ConvertLabelingData(capture, task);
                 if (string.IsNullOrEmpty(labelingData))
                 {
                     ConsoleUtility.PrintWarning($"Skipped frame {soloIndex} out of {frameCount}: " +
-                        "no reported labels");
+                        "no reported labels.");
                     continue;
                 }
 
@@ -130,34 +103,42 @@ namespace z3lx.solo2yolo
                 string destImagePath = Path.Combine(yoloPath, "images", $"{yoloIndex:D12}.{capture.ImageFormat.ToLower()}");
                 File.Copy(sourceImagePath, destImagePath);
 
-                ConsoleUtility.PrintInfo($"Processed frame {soloIndex} out of {frameCount}");
+                ConsoleUtility.PrintInfo($"Processed frame {soloIndex} out of {frameCount}.");
 
                 yoloIndex++;
             }
 
-            ConsoleUtility.PrintInfo("Creating dataset.yaml");
-            AnnotationDefinition annotationDefinition = DeserializeObjectFromFile<AnnotationDefinitions>(Path.Combine(soloPath, "annotation_definitions.json")).Values[0];
+            // Create dataset.yaml
+            ConsoleUtility.PrintInfo("Creating dataset.yaml...");
+            AnnotationDefinition annotationDefinition = annotationDefinitions.Values[0];
             GenerateDatasetYaml(yoloPath, annotationDefinition);
 
-            stopWatch.Stop();
-            ts = stopWatch.Elapsed;
-            ConsoleUtility.PrintInfo($"Converted dataset format in {ts.TotalMilliseconds:F3} ms");
+            stopwatch.Stop();
+            TimeSpan ts = stopwatch.Elapsed;
+            ConsoleUtility.PrintInfo($"Finished dataset format conversion in {ts.TotalMilliseconds:F3} ms.");
         }
 
-        static int GetIndexFromPath(string path, string format)
+        /// <summary>
+        /// Tries to deserialize a JSON file into an object.
+        /// </summary>
+        /// <typeparam name="T">The type of the object to deserialize.</typeparam>
+        /// <param name="filePath">The path to the JSON file.</param>
+        /// <param name="result">The deserialized object.</param>
+        private static bool TryDeserializeObjectFromFile<T>(string filePath, out T result)
         {
-            string fileName = Path.GetFileName(path);
-            string pattern = format.Replace("*", "(\\d+)");
-            Match match = Regex.Match(fileName, pattern);
-
-            if (!match.Success || !(match.Groups.Count > 1))
-                return -1;
-
-            string indexString = match.Groups[1].Value;
-            return int.Parse(indexString);
+            try
+            {
+                result = DeserializeObjectFromFile<T>(filePath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ConsoleUtility.PrintError($"{ex.Message} Aborting.");
+                result = default;
+                return false;
+            }
         }
 
-        // TODO: Add validations
         /// <summary>
         /// Deserializes a JSON file into an object.
         /// </summary>
@@ -167,10 +148,24 @@ namespace z3lx.solo2yolo
         private static T DeserializeObjectFromFile<T>(string filePath)
         {
             if (!File.Exists(filePath))
-                throw new FileNotFoundException($"Could not find {Path.GetFileName(filePath)}.");
+                throw new FileNotFoundException($"File '{filePath}' not found.");
 
-            string data = File.ReadAllText(filePath);
-            return JsonConvert.DeserializeObject<T>(data);
+            try
+            {
+                string data = File.ReadAllText(filePath);
+                if (string.IsNullOrEmpty(data))
+                    throw new JsonSerializationException($"File '{filePath}' is empty.");
+
+                T deserializedObject = JsonConvert.DeserializeObject<T>(data);
+                if (deserializedObject == null)
+                    throw new JsonSerializationException($"Failed to deserialize {typeof(T)} from the file '{filePath}'.");
+
+                return deserializedObject;
+            }
+            catch (Exception ex)
+            {
+                throw new JsonSerializationException($"An error occurred while deserializing the file '{filePath}': {ex.Message}", ex);
+            }
         }
 
         /// <summary>
@@ -185,13 +180,106 @@ namespace z3lx.solo2yolo
             path = path.Trim();
 
             if (Path.GetInvalidPathChars().Any(path.Contains))
-                throw new DirectoryNotFoundException("Path contains invalid characters.");
+                throw new DirectoryNotFoundException($"Path '{path}' contains invalid characters.");
 
             if (!Path.IsPathRooted(path))
-                throw new DirectoryNotFoundException("Path is not an absolute path.");
+                throw new DirectoryNotFoundException($"Path '{path}' is not an absolute path.");
 
             if (!Directory.Exists(path))
-                throw new DirectoryNotFoundException("Path does not exist.");
+                throw new DirectoryNotFoundException($"Path '{path}' does not exist.");
+        }
+
+        /// <summary>
+        /// Tries to find frame paths in the SOLO dataset.
+        /// </summary>
+        /// <param name="soloPath">The path to the SOLO dataset.</param>
+        /// /// <param name="metadata">The metadata associated to the SOLO dataset.</param>
+        /// <param name="frameDataPaths">The frame paths.</param>
+        /// <param name="frameCount">The frame count.</param>
+        /// <returns></returns>
+        private static bool TryFindFrames(string soloPath, Metadata metadata, out IEnumerable<string> frameDataPaths, out int frameCount)
+        {
+            ConsoleUtility.PrintInfo("Finding frame(s)...");
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            try
+            {
+                frameDataPaths = FindFrames(soloPath);
+                frameCount = frameDataPaths.Count();
+            }
+            catch (Exception ex)
+            {
+                ConsoleUtility.PrintError($"{ex.Message} Aborting.");
+                frameDataPaths = default;
+                frameCount = -1;
+                return false;
+            }
+
+            stopwatch.Stop();
+            TimeSpan ts = stopwatch.Elapsed;
+
+            if (frameCount == metadata.TotalFrames)
+            {
+                ConsoleUtility.PrintInfo(string.Format("Found {0} frame{1} in {2:F3} ms.",
+                    frameCount, frameCount == 1 ? "" : "s", ts.TotalMilliseconds));
+            }
+            else if (frameCount == 0)
+            {
+                ConsoleUtility.PrintError($"Did not find any frames in '{soloPath}'. Aborting.");
+                return false;
+            }
+            else
+            {
+                ConsoleUtility.PrintWarning(string.Format("Found {0} frame{1} in {2:F3} ms, expected {3}.",
+                    frameCount, frameCount == 1 ? "" : "s", ts.TotalMilliseconds, metadata.TotalFrames));
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Finds frame paths in the SOLO dataset.
+        /// </summary>
+        /// <param name="soloPath">The path to the SOLO dataset.</param>
+        /// <returns>The frame paths.</returns>
+        private static IEnumerable<string> FindFrames(string soloPath)
+        {
+            try
+            {
+                string sequencePattern = "sequence.*";
+                IEnumerable<string> sequencePaths = Directory.EnumerateDirectories(soloPath, sequencePattern, SearchOption.TopDirectoryOnly)
+                    .OrderBy(sequencePath => GetIndexFromPath(sequencePath, sequencePattern));
+
+                string framePattern = "step*.frame_data.json";
+                IEnumerable<string> frameDataPaths = sequencePaths
+                    .SelectMany(sequencePath => Directory.EnumerateFiles(sequencePath, framePattern, SearchOption.TopDirectoryOnly)
+                    .OrderBy(frameDataPath => GetIndexFromPath(frameDataPath, framePattern)));
+
+                return frameDataPaths;
+            }
+            catch (Exception ex)
+            {
+                throw new IOException($"An error occurred while finding frames in {soloPath}: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Extracts the index from a given path using the provided format.
+        /// </summary>
+        /// <param name="path">The path to get the index from.</param>
+        /// <param name="format">The path format.</param>
+        /// <returns>The extracted index.</returns>
+        private static int GetIndexFromPath(string path, string format)
+        {
+            string fileName = Path.GetFileName(path);
+            string pattern = format.Replace("*", "(\\d+)");
+            Match match = Regex.Match(fileName, pattern);
+
+            if (!match.Success || !(match.Groups.Count > 1))
+                return -1;
+
+            string indexString = match.Groups[1].Value;
+            return int.Parse(indexString);
         }
 
         /// <summary>
@@ -256,7 +344,7 @@ namespace z3lx.solo2yolo
                     throw new NotImplementedException();
 
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(task), task, "Unsupported task type.");
+                    throw new ArgumentOutOfRangeException(nameof(task), task, "Unsupported task type. ");
             }
 
             return labelingData;
