@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 namespace z3lx.solo2yolo.Deserialization.DataModels
 {
     [System.Serializable]
+    [JsonObject(ItemRequired = Required.Always)]
     public sealed class Metadata
     {
         [JsonProperty("unityVersion")]
