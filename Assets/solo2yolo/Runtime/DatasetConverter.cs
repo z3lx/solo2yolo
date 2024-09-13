@@ -1,31 +1,26 @@
 using Newtonsoft.Json;
 using System;
 using System.IO;
+using System.Linq;
 using Unity.Properties;
-using UnityEngine;
 using z3lx.solo2yolo.Deserialization.DataModels;
 
 namespace z3lx.solo2yolo
 {
     public static class DatasetConverter
     {
-        public static void Convert(string soloPath, string outPath, ComputerVisionTask task, bool log = false)
+        // TODO: Add image dimension verification
+        public static void Convert(string soloPath, string outputPath, ComputerVisionTask task, bool log = false)
         {
-            // TODO: Add validations for solo and yolo paths
-            // TODO: Add image dimension verification
-            soloPath = soloPath.Replace('/', '\\');
-            outPath = outPath.Replace('/', '\\');
+            // Validate input and output paths
+            try { ValidateAndSanitizePath(ref soloPath); }
+            catch (Exception ex) { throw new InvalidPathException($"SOLO path invalid: {ex.Message.ToLower()}"); }
 
-            if (soloPath.EndsWith(@"\"))
-                soloPath = soloPath.TrimEnd('\\');
-            if (outPath.EndsWith(@"\"))
-                outPath = outPath.TrimEnd('\\');
-
-            if (!Directory.Exists(soloPath))
-                throw new InvalidPathException("Invalid SOLO path.");
+            try { ValidateAndSanitizePath(ref outputPath); }
+            catch (Exception ex) { throw new InvalidPathException($"Output path invalid: {ex.Message.ToLower()}"); }
 
             // Create new YOLO directory and cache its path
-            (string parent, string images, string labels) yoloPath = CreateYoloDirectory(outPath);
+            (string parent, string images, string labels) yoloPath = CreateYoloDirectory(outputPath);
 
             // Find and deserialize metadata
             // TODO: Add validations
@@ -36,7 +31,7 @@ namespace z3lx.solo2yolo
             int sequenceCount = 0;
             for (int i = 0; sequenceCount < metadata.TotalSequences; i++)
             {
-                string sequencePath = $@"{soloPath}\sequence.{i}";
+                string sequencePath = $"{soloPath}/sequence.{i}";
                 if (!Directory.Exists(sequencePath)) continue;
                 sequenceCount++;
 
@@ -44,7 +39,7 @@ namespace z3lx.solo2yolo
                 int framesInSequence = Directory.GetFiles(sequencePath, "*.json").Length;
                 for (int j = 0; frameCount < framesInSequence; j++)
                 {
-                    string frameDataPath = $@"{sequencePath}\step{j}.frame_data.json";
+                    string frameDataPath = $"{sequencePath}/step{j}.frame_data.json";
                     if (!File.Exists(frameDataPath)) continue;
                     frameCount++;
 
@@ -96,10 +91,10 @@ namespace z3lx.solo2yolo
                     }
 
                     // Write labeling data to output
-                    File.WriteAllText($@"{yoloPath.labels}\{totalFrameCount:D12}.txt", labelingData);
+                    File.WriteAllText($"{yoloPath.labels}/{totalFrameCount:D12}.txt", labelingData);
 
                     // Copy image to output
-                    File.Copy($@"{sequencePath}\{capture.FileName}", $@"{yoloPath.images}\{totalFrameCount:D12}.{capture.ImageFormat.ToLower()}");
+                    File.Copy($"{sequencePath}/{capture.FileName}", $"{yoloPath.images}/{totalFrameCount:D12}.{capture.ImageFormat.ToLower()}");
 
                     totalFrameCount++;
                 }
@@ -119,23 +114,40 @@ namespace z3lx.solo2yolo
             content += $"names:\n";
             foreach (AnnotationDefinition.Specification spec in annotationDefinition.Specifications)
                 content += $"  {spec.LabelId}: {spec.labelName}\n";
-            File.WriteAllText($@"{yoloPath.parent}\dataset.yaml", content);
+            File.WriteAllText($"{yoloPath.parent}/dataset.yaml", content);
+        }
+
+        private static void ValidateAndSanitizePath(ref string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new InvalidPathException("Path cannot be null or empty.");
+
+            path = path.Replace('\\', '/').Trim();
+
+            if (Path.GetInvalidPathChars().Any(path.Contains))
+                throw new InvalidPathException("Path contains invalid characters.");
+
+            if (!Path.IsPathRooted(path))
+                throw new InvalidPathException("Path is not an absolute path.");
+
+            if (!Directory.Exists(path))
+                throw new InvalidPathException("Path does not exist.");
         }
 
         private static (string, string, string) CreateYoloDirectory(string path)
         {
             int i = 0;
-            string newYoloDirPath = $@"{path}\yolo";
+            string newYoloDirPath = $"{path}/yolo";
 
             while (Directory.Exists(newYoloDirPath))
             {
                 i++;
-                newYoloDirPath = $@"{path}\yolo_{i}";
+                newYoloDirPath = $"{path}/yolo_{i}";
             }
 
-            string parent = $@"{newYoloDirPath}";
-            string images = $@"{newYoloDirPath}\images";
-            string labels = $@"{newYoloDirPath}\labels";
+            string parent = $"{newYoloDirPath}";
+            string images = $"{newYoloDirPath}/images";
+            string labels = $"{newYoloDirPath}/labels";
             Directory.CreateDirectory(newYoloDirPath);
             Directory.CreateDirectory(images);
             Directory.CreateDirectory(labels);
@@ -144,7 +156,7 @@ namespace z3lx.solo2yolo
 
         private static Metadata GetMetadata(string soloPath)
         {
-            string metadataPath = $@"{soloPath}\metadata.json";
+            string metadataPath = $"{soloPath}/metadata.json";
             if (!File.Exists(metadataPath))
                 throw new FileNotFoundException("Could not find metadata.json");
             string metadataContent = File.ReadAllText(metadataPath);
@@ -153,7 +165,7 @@ namespace z3lx.solo2yolo
 
         private static AnnotationDefinitions GetAnnotationDefinition(string soloPath)
         {
-            string annotationDefinitionPath = $@"{soloPath}\annotation_definitions.json";
+            string annotationDefinitionPath = $"{soloPath}/annotation_definitions.json";
             if (!File.Exists(annotationDefinitionPath))
                 throw new FileNotFoundException("Could not find annotation_definitions.json");
             string annotationDefinitionContent = File.ReadAllText(annotationDefinitionPath);
