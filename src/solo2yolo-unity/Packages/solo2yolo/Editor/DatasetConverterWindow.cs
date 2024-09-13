@@ -119,7 +119,7 @@ namespace z3lx.solo2yolo
                 default:
                     throw new PlatformNotSupportedException("Unsupported platform.");
             }
-            System.Diagnostics.Process.Start(path, $"-i {_soloPath} -o {_yoloPath} -t {_task}");
+            System.Diagnostics.Process.Start(path, $"-i {_soloPath} -o {_yoloPath} -t {_task} --unity-editor");
         }
     }
 }
